@@ -543,7 +543,7 @@ def create_x3d(
     input_clip_length: int = 13,
     input_crop_size: int = 160,
     # Model configs.
-    model_num_class: int = 400,
+    model_num_class: int = 5,
     dropout_rate: float = 0.5,
     width_factor: float = 2.0,
     depth_factor: float = 2.2,
