@@ -51,10 +51,10 @@ class X3D_Dataset(Dataset):
         self._downsample = 4
         self.num_classes = 2            
         if is_train:
-            self.pathhhhh = os.path.join("/kaggle/input/train-csv/train.csv")
+            self.pathhhhh = os.path.join("/kaggle/input/train-csv/train.csv")#path train 
             
         else:
-            self.pathhhhh = os.path.join("/kaggle/input/val-csv/val.csv")
+            self.pathhhhh = os.path.join("/kaggle/input/val-csv/val.csv")#path validation
 
         self.transform = transform
         self.is_train = is_train
