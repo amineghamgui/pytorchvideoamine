@@ -400,7 +400,7 @@ if __name__ == '__main__':
    
 ############################################affichge des courbe de train avec WandB
     
-    wandb.login()
+    wandb.login(key='567e34776ff4ffdb596ffacdba0417941f618300')
     run = wandb.init(
         # Set the project where this run will be logged
         project="X3d_project",
