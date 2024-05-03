@@ -13,6 +13,7 @@ from pytorchvideo.transforms import (
     ShortSideScale,
     UniformTemporalSubsample
 )
+import wandb
 import os
 import random
 import numpy as np
@@ -31,6 +32,13 @@ from torch.autograd import Variable
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
+from sklearn.metrics import classification_report
+from sklearn.metrics import precision_score
+from sklearn.metrics import accuracy_score
+
+
+
+
 #############################dataset & data loader###########################
 
 
@@ -39,9 +47,7 @@ class X3D_Dataset(Dataset):
                  
                  is_train=False,
                  img_size=224,
-                 transform=None,
-                 len_clip=25,
-                 sampling_rate=1):
+                 transform=None):
         self._downsample = 4
         self.num_classes = 2            
         if is_train:
@@ -52,11 +58,8 @@ class X3D_Dataset(Dataset):
 
         self.transform = transform
         self.is_train = is_train
-        
         self.img_size = img_size
-        self.len_clip = len_clip
-        self.sampling_rate = sampling_rate
-        self.seq_len = self.len_clip * self.sampling_rate
+        
         self._load_data()
 
     
@@ -113,11 +116,6 @@ class X3D_Dataset(Dataset):
         for i in l_entiers:
             liste0[i]=1
         return liste0
-
-#     @staticmethod  
-#     def class_to_list(l,numclasses):
-#         l_entiers = [int(element) for element in l]
-#         return l_entiers
     
     def _load_data(self):
         video_factory=self.parse_csv_to_dict()
@@ -169,7 +167,7 @@ class X3D_Dataset(Dataset):
 
         }
 
-        return keyframe_info, l_clip, target  # Correction de la variable retournée
+        return keyframe_info, l_clip, target  
 
 #########################################Focal loss###########################################"
 
@@ -310,9 +308,8 @@ if __name__ == '__main__':
 
         is_train=False,
         img_size=img_size,
-        transform=transform,
-        len_clip=len_clip,
-        sampling_rate=1
+        transform=transform
+        
     )
 
 
@@ -320,9 +317,7 @@ if __name__ == '__main__':
 
         is_train=True,
         img_size=img_size,
-        transform=transform,
-        len_clip=len_clip,
-        sampling_rate=1
+        transform=transform
     )
     
     training_loader  = torch.utils.data.DataLoader(dataset_train,drop_last=False,
@@ -344,6 +339,156 @@ if __name__ == '__main__':
     #optimazer & Loss function
     optimizer = torch.optim.SGD(model1.parameters(), lr=0.001, momentum=0.9)
     loss_function = SigmoidFocalLoss(num_classes=2, alpha=0.25, gamma=2, reduction='mean')
+    #Cpu or Gpu
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model1.to(device)
     
-   
+    
+    #train one epoch
+    def train_one_epoch(epoch_index, tb_writer):
+        running_loss = 0.
+        last_loss = 0.
+        sum_accuracy=0
+        # Here, we use enumerate(training_loader) instead of
+        # iter(training_loader) so that we can track the batch
+        # index and do some intra-epoch reporting
+        concatenated_tensor_labels = torch.empty(0)
+        concatenated_tensor_predicted= torch.empty(0)
+        for i, data in enumerate(training_loader):
+            # Every data instance is an input + label pair
+            icx,inputs, labels = data
+            
+            inputs, labels = inputs.to(device), labels.to(device)
+            # Zero your gradients for every batch!
+            optimizer.zero_grad()
 
+            # Make predictions for this batch
+            outputs = model1(inputs)
+            post_act = torch.nn.Softmax(dim=1)
+            preds = post_act(outputs)
+
+            # Compute the loss and its gradients
+            loss = loss_function(preds, labels)
+            loss.backward()
+
+            # Adjust learning weights
+            optimizer.step()
+
+            # Gather data and report
+            running_loss += loss.item()
+            
+            #calcul de accuracy pour chaque batch et sommation 
+            _, predicted = torch.max(outputs, 1)
+            #print("train              labels     : \n",labels.cpu(),"predicted  ", predicted.cpu()) 
+            accuracy=accuracy_score(labels.cpu(), predicted.cpu())
+            sum_accuracy += accuracy
+            
+            
+            concatenated_tensor_labels = torch.cat((concatenated_tensor_labels, labels.cpu()), dim=0)
+            concatenated_tensor_predicted = torch.cat((concatenated_tensor_predicted, predicted.cpu()), dim=0)
+            if i % 10 == 5:
+                last_loss = running_loss / 10 # loss per batch
+
+                print('  batch {} loss: {} '.format(i + 1, last_loss))
+                tb_x = epoch_index * len(training_loader) + i + 1
+                tb_writer.add_scalar('Loss/train', last_loss, tb_x)
+                running_loss = 0.
+            
+        accuracy_avg=sum_accuracy/len(training_loader)
+        precision=precision_score(concatenated_tensor_labels, concatenated_tensor_predicted, average='micro')
+        return last_loss,accuracy_avg,precision
+   
+############################################affichge des courbe de train avec WandB
+    
+    wandb.login()
+    run = wandb.init(
+        # Set the project where this run will be logged
+        project="X3d_project",
+        # Track hyperparameters and run metadata
+        config={
+            
+            "epochs": 5,
+        },
+    )
+################################################################
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    writer = SummaryWriter('runs/fashion_trainer_{}'.format(timestamp))
+    epoch_number = 0
+
+    EPOCHS = 5
+
+    best_vloss = 1_000_000.
+
+    for epoch in range(EPOCHS):
+        print('EPOCH {}:'.format(epoch_number + 1))
+
+        # Make sure gradient tracking is on, and do a pass over the data
+        model1.train(True)
+        
+        resultat_train_one_epoch= train_one_epoch(epoch_number, writer)
+        avg_loss =resultat_train_one_epoch[0]
+        avg_acc=resultat_train_one_epoch[1]
+        precision_train=resultat_train_one_epoch[2]
+
+        
+        running_vloss = 0.0
+        sum_vacc = 0.0
+        concatenated_tensor_vlabels = torch.empty(0)
+        concatenated_tensor_predicted= torch.empty(0)
+        # Set the model to evaluation mode, disabling dropout and using population
+        # statistics for batch normalization.
+        model1.eval()
+        
+        # Disable gradient computation and reduce memory consumption.
+        with torch.no_grad():
+            for i, vdata in enumerate(validation_loader):
+                frameidx,vinputs, vlabels = vdata
+                vinputs, vlabels = vinputs.to(device), vlabels.to(device)
+                voutputs = model1(vinputs)
+                post_act = torch.nn.Softmax(dim=1)
+                preds = post_act(voutputs)
+    #             print(voutputs)
+    #             print(vlabels[0]["labels"])
+                vloss = loss_function(preds, vlabels)
+                running_vloss += vloss
+                #accuracy validation
+                _, predicted = torch.max(voutputs, 1)
+                #print("validation           vlabels        : \n",vlabels.cpu(),'predicted : ', predicted.cpu())
+                accuracy=accuracy_score(vlabels.cpu(), predicted.cpu())
+                sum_vacc=accuracy+sum_vacc
+                ############################
+                
+                concatenated_tensor_vlabels = torch.cat((concatenated_tensor_vlabels, vlabels.cpu()), dim=0)
+                #print("concatenated_tensor_vlabels\n",concatenated_tensor_vlabels)
+                concatenated_tensor_predicted = torch.cat((concatenated_tensor_predicted, predicted.cpu()), dim=0)
+                #print("concatenated_tensor_predicted\n",concatenated_tensor_predicted)
+        precision_val=precision_score(concatenated_tensor_vlabels, concatenated_tensor_predicted, average='micro')
+            
+        print(classification_report(concatenated_tensor_vlabels, concatenated_tensor_predicted))
+        
+        accuracy_val_avg=sum_vacc/len(validation_loader)
+
+        avg_vloss = running_vloss / (i + 1)
+        
+        
+        
+        
+        print('LOSS train {} valid {} \n'.format(avg_loss, avg_vloss))
+        print('acc train {} valid {} '.format(avg_acc, accuracy_val_avg))
+        print('precision train {} valid {} '.format(precision_train, precision_val))
+        wandb.log({"accuracy_train": avg_acc, "accuracy_val": accuracy_val_avg,"loss_train":avg_loss,"loss_val":avg_vloss,"precision_train":precision_train,"precision_val":precision_val})
+        # Log the running loss averaged per batch
+        # for both training and validation
+        writer.add_scalars('Training vs. Validation Loss',
+                        { 'Training' : avg_loss, 'Validation' : avg_vloss },
+                        epoch_number + 1)
+        writer.flush()
+
+        # Track best performance, and save the model's state
+        if avg_vloss < best_vloss:
+            best_vloss = avg_vloss
+            poid_path = 'poid_{}_{}'.format("amine", epoch_number)
+            torch.save(model1.state_dict(), poid_path)#***************************************************************modifier path***********************************************************
+
+        epoch_number += 1
