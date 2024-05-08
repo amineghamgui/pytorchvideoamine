@@ -279,7 +279,7 @@ if __name__ == '__main__':
     }
 
     # Get transform parameters based on model
-    transform_params = model_transform_params["x3d_xs"]
+    transform_params = model_transform_params["x3d_s"]
 
     # Note that this transform is specific to the slow_R50 model.
     transform =  ApplyTransformToKey(
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     
     
     #transfert learning 
-    model_name = 'x3d_xs'
+    model_name = 'x3d_s'
     model1 = torch.hub.load('facebookresearch/pytorchvideo', model_name, pretrained=True)
     layers = list(model1.blocks.children())
     _layers = layers[:-1]  # Extrait de caractéristiques
