@@ -6,7 +6,6 @@ fvcore
 
 wandb
 
-json
 
 urllib
 
