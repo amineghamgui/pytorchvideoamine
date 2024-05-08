@@ -396,7 +396,7 @@ if __name__ == '__main__':
             
         accuracy_avg=sum_accuracy/len(training_loader)
         precision=precision_score(concatenated_tensor_labels, concatenated_tensor_predicted, average='micro')
-        print("*********************matrice de confusion***************train******epoch ',epoch)    
+        print("*********************matrice de confusion***************train******epoch ",epoch)    
         print(classification_report(concatenated_tensor_labels, concatenated_tensor_predicted))
         
         return last_loss,accuracy_avg,precision
@@ -467,7 +467,7 @@ if __name__ == '__main__':
                 concatenated_tensor_predicted = torch.cat((concatenated_tensor_predicted, predicted.cpu()), dim=0)
                 #print("concatenated_tensor_predicted\n",concatenated_tensor_predicted)
         precision_val=precision_score(concatenated_tensor_vlabels, concatenated_tensor_predicted, average='micro')
-        print("*********************matrice de confusion***************validation******epoch ',epoch)    
+        print("*********************matrice de confusion***************validation******epoch ",epoch)    
         print(classification_report(concatenated_tensor_vlabels, concatenated_tensor_predicted))
         
         accuracy_val_avg=sum_vacc/len(validation_loader)
