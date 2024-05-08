@@ -7,8 +7,6 @@ fvcore
 wandb
 
 
-urllib
-
 os
 
 numpy
