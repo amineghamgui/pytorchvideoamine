@@ -159,6 +159,7 @@ class X3D_Dataset(Dataset):
         
         l_clip = self.transform(video_data)
         l_clip=l_clip["video"]
+        
         # Reformater target
         target = {
              #'labels':  torch.tensor([annotations]),  
