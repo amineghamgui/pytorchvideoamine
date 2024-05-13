@@ -2,7 +2,7 @@ import torch
 import json
 import urllib
 from pytorchvideo.data.encoded_video import EncodedVideo
-
+from pytorchvideo.transforms.transforms import UniformTemporalSubsample
 from torchvision.transforms import Compose, Lambda
 from torchvision.transforms._transforms_video import (
     CenterCropVideo,
@@ -159,6 +159,11 @@ class X3D_Dataset(Dataset):
         
         l_clip = self.transform(video_data)
         l_clip=l_clip["video"]
+        #uniform_temporal_subsample
+        uniform_temporal_subsample = UniformTemporalSubsample(num_samples=30)
+        l_clip = uniform_temporal_subsample(l_clip)
+
+        print('l_clip.shape apres uniform_temporal_subsample',l_clip.shape)
         
         # Reformater target
         target = {
