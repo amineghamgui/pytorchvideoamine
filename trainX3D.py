@@ -163,7 +163,7 @@ class X3D_Dataset(Dataset):
         uniform_temporal_subsample = UniformTemporalSubsample(num_samples=30)
         l_clip = uniform_temporal_subsample(l_clip)
 
-        print('l_clip.shape apres uniform_temporal_subsample',l_clip.shape)
+        # print('l_clip.shape apres uniform_temporal_subsample',l_clip.shape)
         
         # Reformater target
         target = {
